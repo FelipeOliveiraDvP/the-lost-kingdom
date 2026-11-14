@@ -1,0 +1,46 @@
+
+[project]
+name = "hello-python"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "ruff",
+    "pytest",
+    "mypy",
+    "poethepoet"
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = "src"
+
+[tool.poe.tasks]
+format = "ruff format ."
+lint = "ruff check ."
+fix = "ruff check --fix ."
+test = "pytest"
+typecheck = "mypy src/"
+
+[tool.poe.tasks.check]
+sequence = [
+    "lint",
+    "typecheck",
+    "test"
+]
