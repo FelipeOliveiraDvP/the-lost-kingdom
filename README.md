@@ -1,46 +1,133 @@
-# hello-python
+# The Lost Kingdom
 
-A minimal Python project that prints a message when run.
+Demo de RPG de acao 2D em Python e Pygame, implementada conforme o
+[documento de game design](docs/game-design.md).
 
-## Requirements
+Parta de **START**, explore os caminhos e alcance o **santuario ao norte**.
+Voce comeca com cinco coracoes. Cada orc tem um ponto de vida, e cada golpe
+causa um ponto de dano. Colete moedas pelo caminho: elas sao opcionais para
+vencer. Nao existe limite de tempo.
 
-- Python 3.12 or newer
-- [uv](https://docs.astral.sh/uv/) for installing the project’s development tools
+## Instalar e executar
 
-## Setup
-
-From the project directory, install the development dependencies:
+Requisitos: Python 3.12 ou superior, um ambiente grafico e
+[uv](https://docs.astral.sh/uv/). O projeto seleciona Python 3.12 em
+[.python-version](.python-version) para usar os pacotes binarios do Pygame.
+O uv pode baixar esse interpretador automaticamente.
 
 ```bash
 uv sync --group dev
-```
-
-## Run
-
-```bash
 uv run python src/main.py
 ```
 
-The program prints:
+No VS Code, selecione o interpretador da pasta `.venv` e pressione **F5**
+(configuracao **The Lost Kingdom**). Depois da instalacao, nao ha comandos
+de terminal durante a partida: menus funcionam por teclado ou mouse.
+Tambem e possivel executar [src/main.py](src/main.py) com o Python da `.venv`.
 
-```text
-Python environment configured successfully!
-```
+Mantenha a pasta [assets/](assets/) junto ao projeto. Os caminhos dos recursos
+sao resolvidos a partir do codigo, nao do diretorio atual. Nao e necessario
+baixar recursos nem acessar a internet para jogar.
 
-## Development checks
+## Controles
 
-Run linting, type checking, and the test suite:
+| Tecla | Acao |
+| --- | --- |
+| W / cima | Mover para cima |
+| S / baixo | Mover para baixo |
+| A / esquerda | Mover para a esquerda |
+| D / direita | Mover para a direita |
+| SPACE | Atacar na direcao atual; segurar repete apos o intervalo |
+| ESC | Pausar / continuar; retornar ao menu nas telas finais |
+| Setas / W / S + ENTER | Navegar e selecionar nos menus |
+| Mouse | Selecionar botoes dos menus |
+
+A janela pode ser redimensionada e mantem a proporcao da imagem. A camera
+acompanha o jogador; o minimapa marca sua posicao em verde e o objetivo em
+dourado. Perder o foco da janela pausa a partida automaticamente.
+
+## Regras implementadas
+
+- Movimento com velocidade independente do FPS e diagonais normalizadas.
+- Agua, barrancos, paredes, arvores, pedras e monumentos bloqueiam os pes.
+  A colisao e uma mascara separada do fundo, definida em coordenadas do mapa.
+- Golpe direcional com alcance curto, duracao de 0,32 s e intervalo de 0,48 s.
+  Obstaculos bloqueiam ataques e a deteccao dos inimigos.
+- 13 orcs patrulham e perseguem o jogador quando ele esta proximo e visivel.
+  Um golpe elimina um orc; contato causa um coracao de dano.
+- Invulnerabilidade de 1,2 s apos dano, com indicacao visual.
+- 26 moedas coletaveis, contador no HUD e total apresentado na tela de vitoria.
+- Estados MENU, PLAYING, PAUSED, GAME_OVER e VICTORY.
+- Pausa congela movimento, inimigos, ataques e invulnerabilidade.
+  Uma nova partida reinicia vida, moedas, inimigos e todos os intervalos.
+- Sprites animados em quatro direcoes, musica e efeitos dos assets fornecidos.
+  Sem dispositivo de audio, o jogo mostra um aviso e continua sem som.
+  Recursos ausentes ou invalidos geram erro explicito.
+
+O efeito `life-increase.wav` nao e utilizado: recuperacao de vida nao faz
+parte do escopo da demo. Nao ha inventario, salvamento, progressao ou outras fases.
+
+## Organizacao e ajustes
+
+| Modulo | Responsabilidade |
+| --- | --- |
+| [src/main.py](src/main.py) | Entrada, tratamento de erros e encerramento |
+| [core/game.py](src/lost_kingdom/core/game.py) | Composicao, janela, eventos, navegacao e loop |
+| [core/settings.py](src/lost_kingdom/core/settings.py) | Configuracoes e localizacao dos assets |
+| [core/states.py](src/lost_kingdom/core/states.py) | Estados e acoes de navegacao |
+| [entities/](src/lost_kingdom/entities/) | Actor, direcoes, jogador, inimigos e moedas |
+| [systems/world.py](src/lost_kingdom/systems/world.py) | Simulacao, perseguicao, coleta e condicoes de fim |
+| [systems/combat.py](src/lost_kingdom/systems/combat.py) | Resolucao de ataques e dano por contato |
+| [systems/collision.py](src/lost_kingdom/systems/collision.py) | Colisao, movimento e linha de visao |
+| [systems/level.py](src/lost_kingdom/systems/level.py) | Terreno, obstaculos, objetivo e posicionamentos |
+| [scenes/](src/lost_kingdom/scenes/) | Partida, camera e telas de menu, pausa, derrota e vitoria |
+| [ui/components.py](src/lost_kingdom/ui/components.py) | Fontes, primitivas, molduras e botoes compartilhados |
+| [ui/hud.py](src/lost_kingdom/ui/hud.py) | Coracoes, moedas e controles |
+| [ui/error.py](src/lost_kingdom/ui/error.py) | Apresentacao grafica de erros |
+| [resources/assets.py](src/lost_kingdom/resources/assets.py) | Mapa visual e spritesheets |
+| [resources/audio.py](src/lost_kingdom/resources/audio.py) | Musica e efeitos |
+
+A estrutura segue a secao de arquitetura do
+[game design](docs/game-design.md), dentro do namespace `lost_kingdom`.
+Entidades e sistemas nao importam cenas, UI, recursos ou o coordenador grafico.
+`core/game.py` compoe essas dependencias; configuracoes e estados nao dependem
+dele. A separacao e pragmatica: os tipos geometricos e as mascaras do Pygame
+continuam na simulacao, sem um dominio totalmente independente do framework.
+Os imports antigos nao possuem fachadas de compatibilidade.
+
+Adicione inimigos e moedas em `ENEMY_SPAWNS` e `COIN_SPAWNS` de
+[systems/level.py](src/lost_kingdom/systems/level.py).
+As coordenadas usam o mapa original de **1086 x 1448** pixels. Ao alterar o
+mapa, atualize tambem `LAND`, `SOLID_RECTS` e `SOLID_ELLIPSES`; as regioes
+externas aos poligonos representam agua, barrancos ou areas decorativas
+inacessiveis. O carregamento rejeita posicionamentos dentro de obstaculos.
+
+Os spritesheets fornecidos usam celulas de 64 x 64 e quatro linhas.
+No jogador, a ordem e baixo, esquerda, direita, cima; nos inimigos,
+baixo, cima, esquerda, direita. `SPRITE_ROWS` em
+[resources/assets.py](src/lost_kingdom/resources/assets.py) mapeia as direcoes para as
+linhas de cada personagem. A renderizacao amplia os sprites com vizinho
+mais proximo para preservar a pixel art.
+
+## Validacao
 
 ```bash
 uv run poe check
 ```
 
-Individual commands:
+Executa Ruff, mypy estrito e pytest. Os testes usam os drivers SDL `dummy`
+para video e audio, sem abrir janelas nem exigir dispositivos reais.
+Cobrem combate, dano, coleta, pausa, reinicio, navegacao de menus,
+carregamento dos assets e renderizacao de todos os estados.
+Tambem verificam uma rota completa de START ao objetivo e a acessibilidade
+de todas as moedas e inimigos.
+Verificam ainda que importar a simulacao nao carrega a apresentacao nem
+inicializa dispositivos, e que os assets carregam fora do diretorio do projeto.
 
 ```bash
 uv run poe lint
 uv run poe typecheck
 uv run poe test
-uv run pytest tests/test_main.py::test_basic_operation
+uv run pytest tests/test_world.py::test_start_to_goal_is_walkable
 uv run poe format
 ```

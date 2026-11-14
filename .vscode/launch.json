@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Python: src/main.py",
+      "name": "The Lost Kingdom",
       "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/src/main.py",
