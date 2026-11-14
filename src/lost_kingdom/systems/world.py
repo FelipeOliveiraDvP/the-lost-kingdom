@@ -3,9 +3,14 @@ from dataclasses import dataclass, field
 
 import pygame
 
-from lost_kingdom.entities import Coin, Direction, Enemy, FallenEnemy, Player, State
-from lost_kingdom.level import COIN_SPAWNS, ENEMY_SPAWNS, Level
-from lost_kingdom.settings import Settings
+from lost_kingdom.core.settings import Settings
+from lost_kingdom.core.states import State
+from lost_kingdom.entities.actor import Direction
+from lost_kingdom.entities.coin import Coin
+from lost_kingdom.entities.enemy import Enemy, FallenEnemy
+from lost_kingdom.entities.player import Player
+from lost_kingdom.systems.combat import resolve_combat
+from lost_kingdom.systems.level import COIN_SPAWNS, ENEMY_SPAWNS, Level
 
 
 @dataclass
@@ -50,7 +55,9 @@ class World:
         if controls.attack:
             player.attack(self.settings)
         speed = self.settings.player_speed * (0.55 if player.attack_left else 1.0)
-        player.moving = self.level.move(player.position, movement * speed * dt)
+        player.moving = self.level.collision.move(
+            player.position, movement * speed * dt
+        )
 
         for fallen in self.fallen:
             fallen.age += dt
@@ -58,19 +65,11 @@ class World:
 
         for enemy in self.enemies:
             self._move_enemy(enemy, dt)
-            if (
-                player.attack_left > 0
-                and player.attack_box.colliderect(enemy.body)
-                and self.level.clear_line(player.position, enemy.position)
-            ):
-                enemy.health -= 1
+            event = resolve_combat(player, enemy, self.level.collision, self.settings)
+            if event == "enemy-dying":
                 self.fallen.append(FallenEnemy(enemy.position.copy(), enemy.facing))
-                self.events.append("enemy-dying")
-            elif player.body.colliderect(enemy.body) and player.take_damage(
-                self.settings
-            ):
-                enemy.contact_left = 0.35
-                self.events.append("player-hit" if player.health else "player-dying")
+            if event is not None:
+                self.events.append(event)
         self.enemies = [enemy for enemy in self.enemies if enemy.health > 0]
 
         if player.health == 0:
@@ -96,7 +95,7 @@ class World:
         to_player = self.player.position - enemy.position
         chasing = (
             to_player.length_squared() <= self.settings.chase_radius** 2
-            and self.level.clear_line(enemy.position, self.player.position)
+            and self.level.collision.clear_line(enemy.position, self.player.position)
         )
         if chasing:
             direction = to_player
@@ -111,6 +110,6 @@ class World:
         direction.normalize_ip()
         enemy.facing = Direction.from_vector(direction)
         speed = self.settings.enemy_speed * (1.0 if chasing else 0.45)
-        enemy.moving = self.level.move(enemy.position, direction * speed * dt)
+        enemy.moving = self.level.collision.move(enemy.position, direction * speed * dt)
         if not enemy.moving and not chasing:
             enemy.patrol_direction *= -1

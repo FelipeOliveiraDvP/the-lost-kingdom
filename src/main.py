@@ -2,7 +2,8 @@ import logging
 
 import pygame
 
-from lost_kingdom.game import Game, show_error
+from lost_kingdom.core.game import Game
+from lost_kingdom.ui.error import show_error
 
 
 def main() -> None:

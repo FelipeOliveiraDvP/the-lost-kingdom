@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-ASSET_DIR = Path(__file__).resolve().parents[2] / "assets"
+ASSET_DIR = Path(__file__).resolve().parents[3] / "assets"
 SCREEN_SIZE = (960, 720)
 MAP_SIZE = (1086, 1448)
 FPS = 60

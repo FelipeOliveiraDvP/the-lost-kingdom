@@ -8,9 +8,9 @@ os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
 import pygame
 import pytest
 
-from lost_kingdom.level import Level
-from lost_kingdom.settings import Settings
-from lost_kingdom.world import World
+from lost_kingdom.core.settings import Settings
+from lost_kingdom.systems.level import Level
+from lost_kingdom.systems.world import World
 
 
 @pytest.fixture(scope="session", autouse=True)

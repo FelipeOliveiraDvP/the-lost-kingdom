@@ -1,14 +1,15 @@
-import math
-import textwrap
-
 import pygame
 
-from lost_kingdom.entities import Actor, Direction, Enemy, State
-from lost_kingdom.level import Level
-from lost_kingdom.resources import Audio, Resources
-from lost_kingdom.settings import FPS, MAP_SIZE, SCREEN_SIZE, Settings
-from lost_kingdom.ui import CREAM, GOLD, GREEN, INK, UI, Action, buttons
-from lost_kingdom.world import Controls, World
+from lost_kingdom.core.settings import FPS, SCREEN_SIZE, Settings
+from lost_kingdom.core.states import Action, State
+from lost_kingdom.entities.actor import Direction
+from lost_kingdom.resources.assets import Resources
+from lost_kingdom.resources.audio import Audio
+from lost_kingdom.scenes import game_over, menu, pause, victory
+from lost_kingdom.scenes.game_scene import GameScene
+from lost_kingdom.systems.level import Level
+from lost_kingdom.systems.world import Controls, World
+from lost_kingdom.ui.components import CREAM, INK, UI, Button
 
 
 class Game:
@@ -25,17 +26,18 @@ class Game:
         self.audio = Audio()
         self.ui = UI()
         self.level = Level()
-        self.world = World(self.level, self.settings)
+        self.scene = GameScene(
+            World(self.level, self.settings), self.resources, self.ui
+        )
         self.state = State.MENU
         self.state_time = 0.0
         self.selected = 0
         self.running = True
-        self.camera = pygame.Vector2()
         self.viewport = pygame.Rect((0, 0), SCREEN_SIZE)
 
     def transition(self, state: State) -> None:
         self.state = state
-        self.world.state = state
+        self.scene.world.state = state
         self.state_time = 0.0
         self.selected = 0
         self.audio.pause(state is State.PAUSED)
@@ -44,7 +46,7 @@ class Game:
         match action:
             case Action.START:
                 self.audio.stop_effects()
-                self.world = World(self.level, self.settings)
+                self.scene.world = World(self.level, self.settings)
                 self.transition(State.PLAYING)
             case Action.RESUME:
                 self.transition(State.PLAYING)
@@ -53,6 +55,19 @@ class Game:
                 self.transition(State.MENU)
             case Action.EXIT:
                 self.running = False
+
+    def buttons(self) -> list[Button]:
+        match self.state:
+            case State.MENU:
+                return menu.buttons()
+            case State.PAUSED:
+                return pause.buttons()
+            case State.GAME_OVER:
+                return game_over.buttons()
+            case State.VICTORY:
+                return victory.buttons()
+            case State.PLAYING:
+                return []
 
     def mouse_position(self, position: tuple[int, int]) -> tuple[int, int] | None:
         if not self.viewport.collidepoint(position):
@@ -83,7 +98,7 @@ class Game:
                 case State.VICTORY | State.GAME_OVER:
                     self.activate(Action.MENU)
         elif self.state is not State.PLAYING:
-            choices = buttons(self.state)
+            choices = self.buttons()
             if event.type == pygame.KEYDOWN:
                 if event.key in (pygame.K_UP, pygame.K_w):
                     self.selected = (self.selected - 1) % len(choices)
@@ -116,11 +131,12 @@ class Game:
     def advance(self, dt: float, controls: Controls) -> None:
         self.state_time += dt
         if self.state is State.PLAYING:
-            self.world.update(dt, controls)
-            for event in self.world.events:
+            world = self.scene.world
+            world.update(dt, controls)
+            for event in world.events:
                 self.audio.play(event)
-            if self.world.state is not State.PLAYING:
-                self.transition(self.world.state)
+            if world.state is not State.PLAYING:
+                self.transition(world.state)
 
     def _resize_viewport(self) -> None:
         width, height = self.window.get_size()
@@ -130,93 +146,21 @@ class Game:
         )
         self.viewport.center = (width // 2, height // 2)
 
-    def _screen_position(self, position: pygame.Vector2) -> tuple[int, int]:
-        return round(position.x - self.camera.x), round(position.y - self.camera.y)
-
-    def _draw_actor(self, actor: Actor, kind: str) -> None:
-        animation = "walk" if actor.moving else "idle"
-        time = actor.animation_time
-        duration = None
-        if kind == "player":
-            player = self.world.player
-            if self.state is State.GAME_OVER:
-                animation, time, duration = "death", self.state_time, 0.7
-            elif player.attack_left:
-                animation = "attack"
-                duration = self.settings.attack_duration
-                time = duration - player.attack_left
-            elif player.hurt_left:
-                animation, time, duration = "hurt", 0.22 - player.hurt_left, 0.22
-            if (
-                player.invulnerable_left
-                and self.state is State.PLAYING
-                and int(self.world.elapsed * 14) % 2
-            ):
-                return
-        elif isinstance(actor, Enemy) and actor.contact_left:
-            animation, time, duration = "attack", 0.35 - actor.contact_left, 0.35
-        frame = self.resources.frame(kind, animation, actor.facing, time, duration)
-        x, y = self._screen_position(actor.position)
-        self.canvas.blit(frame, (x - 64, y - 94))
-
-    def _draw_world(self) -> None:
-        world = self.world
-        player = world.player
-        self.camera.update(
-            max(0, min(MAP_SIZE[0] - SCREEN_SIZE[0], player.position.x - 480)),
-            max(0, min(MAP_SIZE[1] - SCREEN_SIZE[1], player.position.y - 390)),
-        )
-        self.canvas.blit(
-            self.resources.map, (-round(self.camera.x), -round(self.camera.y))
-        )
-        goal_center = self._screen_position(pygame.Vector2(self.level.goal.center))
-        radius = 24 + round(3 * math.sin(world.elapsed * 3))
-        pygame.draw.circle(self.canvas, GOLD, goal_center, radius, 2)
-        self.ui.text(
-            self.canvas,
-            "SANTUARIO",
-            (goal_center[0], goal_center[1] - 44),
-            20,
-            GOLD,
-            True,
-        )
-        for coin in world.coins:
-            x, y = self._screen_position(coin.position)
-            phase = world.elapsed * 4 + coin.position.x / 70
-            self.ui.coin(
-                self.canvas,
-                (x, y + round(math.sin(phase) * 3)),
-                max(4, round(abs(math.cos(phase)) * 15)),
-            )
-        for fallen in world.fallen:
-            frame = self.resources.frame(
-                "enemy", "death", fallen.facing, fallen.age, 0.65
-            )
-            x, y = self._screen_position(fallen.position)
-            self.canvas.blit(frame, (x - 64, y - 94))
-        actors: list[tuple[Actor, str]] = [(player, "player")]
-        actors.extend((enemy, "enemy") for enemy in world.enemies)
-        for actor, kind in sorted(actors, key=lambda item: item[0].position.y):
-            self._draw_actor(actor, kind)
-        self.ui.hud(self.canvas, player.health, self.settings.max_health, player.coins)
-        self.ui.panel(self.canvas, pygame.Rect(336, 18, 288, 44))
-        self.ui.text(self.canvas, "^  ALCANCE O SANTUARIO", (480, 40), 23, GOLD, True)
-        self.ui.panel(self.canvas, pygame.Rect(808, 522, 132, 178))
-        self.canvas.blit(self.resources.minimap, (814, 531))
-        marker = (
-            814 + round(player.position.x / MAP_SIZE[0] * 120),
-            531 + round(player.position.y / MAP_SIZE[1] * 160),
-        )
-        pygame.draw.circle(self.canvas, INK, marker, 5)
-        pygame.draw.circle(self.canvas, GREEN, marker, 3)
-        pygame.draw.circle(self.canvas, GOLD, (874, 541), 3)
-
     def draw(self) -> pygame.Surface:
-        self._draw_world()
-        if self.state is not State.PLAYING:
-            self.ui.overlay(
-                self.canvas, self.state, self.selected, self.world.player.coins
-            )
+        self.scene.draw(self.canvas, self.state, self.state_time)
+        match self.state:
+            case State.MENU:
+                menu.draw(self.canvas, self.ui, self.selected)
+            case State.PAUSED:
+                pause.draw(self.canvas, self.ui, self.selected)
+            case State.GAME_OVER:
+                game_over.draw(
+                    self.canvas, self.ui, self.selected, self.scene.world.player.coins
+                )
+            case State.VICTORY:
+                victory.draw(
+                    self.canvas, self.ui, self.selected, self.scene.world.player.coins
+                )
         if self.audio.warning:
             pygame.draw.rect(self.canvas, INK, (0, 701, SCREEN_SIZE[0], 19))
             self.ui.text(self.canvas, self.audio.warning, (20, 702), 20, CREAM)
@@ -238,23 +182,3 @@ class Game:
                 break
             self.advance(dt, self.controls())
             self.draw()
-
-
-def show_error(message: str) -> None:
-    window = pygame.display.get_surface()
-    if window is None:
-        return
-    ui = UI()
-    window.fill(INK)
-    ui.text(window, "Nao foi possivel abrir o jogo.", (30, 35), 36, GOLD)
-    for index, line in enumerate(textwrap.wrap(message, width=72)[:12]):
-        ui.text(window, line, (30, 100 + index * 28), 24)
-    ui.text(window, "ENTER / ESC para fechar.", (30, window.get_height() - 50), 24)
-    pygame.display.flip()
-    while True:
-        event = pygame.event.wait()
-        if event.type == pygame.QUIT or (
-            event.type == pygame.KEYDOWN
-            and event.key in (pygame.K_ESCAPE, pygame.K_RETURN)
-        ):
-            return

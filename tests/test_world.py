@@ -1,12 +1,18 @@
+import subprocess
+import sys
 from collections import deque
+from pathlib import Path
 
 import pygame
 import pytest
 
-from lost_kingdom.entities import Coin, Direction, Enemy, State
-from lost_kingdom.level import COIN_SPAWNS, ENEMY_SPAWNS
-from lost_kingdom.settings import BODY_SIZE, START, Settings
-from lost_kingdom.world import Controls, World
+from lost_kingdom.core.settings import BODY_SIZE, START, Settings
+from lost_kingdom.core.states import State
+from lost_kingdom.entities.actor import Direction
+from lost_kingdom.entities.coin import Coin
+from lost_kingdom.entities.enemy import Enemy
+from lost_kingdom.systems.level import COIN_SPAWNS, ENEMY_SPAWNS
+from lost_kingdom.systems.world import Controls, World
 
 
 @pytest.mark.parametrize(
@@ -52,19 +58,19 @@ def test_solid_obstacles_cannot_be_crossed(
     level, start, movement, minimum_x, maximum_x
 ):
     position = pygame.Vector2(start)
-    level.move(position, pygame.Vector2(movement))
+    level.collision.move(position, pygame.Vector2(movement))
     assert minimum_x <= position.x <= maximum_x
     body = pygame.Rect((0, 0), BODY_SIZE)
     body.center = position
-    assert level.can_stand(body)
+    assert level.collision.can_stand(body)
 
 
 def test_full_body_collision_and_sliding(level):
     position = pygame.Vector2(558, 1000)
-    level.move(position, pygame.Vector2(-60, -60))
+    level.collision.move(position, pygame.Vector2(-60, -60))
     assert position.x >= 552
     assert position.y == pytest.approx(940)
-    assert not level.can_stand(pygame.Rect(-5, 100, *BODY_SIZE))
+    assert not level.collision.can_stand(pygame.Rect(-5, 100, *BODY_SIZE))
 
 
 @pytest.mark.parametrize("facing", list(Direction))
@@ -100,7 +106,7 @@ def test_attacks_and_chasing_do_not_pass_through_solids(world):
     world.player.position.update(631, 1289)
     world.player.facing = Direction.RIGHT
     enemy = Enemy(pygame.Vector2(677, 1289))
-    assert not world.level.clear_line(world.player.position, enemy.position)
+    assert not world.level.collision.clear_line(world.player.position, enemy.position)
     world.enemies = [enemy]
     world.update(0.1, Controls(attack=True))
     assert enemy.health == 1
@@ -216,7 +222,7 @@ def test_all_collectibles_and_enemies_are_reachable(level):
             if neighbor in visited:
                 continue
             body.center = neighbor
-            if level.can_stand(body):
+            if level.collision.can_stand(body):
                 visited.add(neighbor)
                 queue.append(neighbor)
     for x, y in (*COIN_SPAWNS, *ENEMY_SPAWNS, level.goal.center):
@@ -241,3 +247,34 @@ def test_pause_freezes_all_simulation(world):
 def test_invalid_frame_duration_is_reported(world, dt):
     with pytest.raises(ValueError, match="Frame duration"):
         world.update(dt, Controls())
+
+
+def test_simulation_import_is_independent_of_presentation(tmp_path):
+    code = """
+import sys
+
+sys.path.insert(0, sys.argv[1])
+
+import pygame
+import lost_kingdom.systems.world
+
+for prefix in (
+    "lost_kingdom.core.game",
+    "lost_kingdom.scenes",
+    "lost_kingdom.ui",
+    "lost_kingdom.resources",
+):
+    assert not any(
+        name == prefix or name.startswith(prefix + ".") for name in sys.modules
+    ), prefix
+assert not pygame.display.get_init()
+assert pygame.mixer.get_init() is None
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code, str(Path(__file__).resolve().parents[1] / "src")],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stderr

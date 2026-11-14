@@ -1,8 +1,7 @@
-import math
-
 import pygame
 
-from lost_kingdom.settings import BODY_SIZE, GOAL, MAP_SIZE, START
+from lost_kingdom.core.settings import BODY_SIZE, GOAL, MAP_SIZE, START
+from lost_kingdom.systems.collision import Collision
 
 # Coordinates are in the original map's pixels, independent of camera and sprites.
 LAND = (
@@ -129,43 +128,10 @@ class Level:
             pygame.draw.rect(surface, (0, 0, 0, 0), rect)
         for ellipse in SOLID_ELLIPSES:
             pygame.draw.ellipse(surface, (0, 0, 0, 0), ellipse)
-        self.walkable = pygame.mask.from_surface(surface)
-        self.footprint = pygame.Mask(BODY_SIZE, fill=True)
+        self.collision = Collision(pygame.mask.from_surface(surface))
         self.goal = pygame.Rect(GOAL)
         for position in (START, *ENEMY_SPAWNS, *COIN_SPAWNS, self.goal.center):
             body = pygame.Rect((0, 0), BODY_SIZE)
             body.center = position
-            if not self.can_stand(body):
+            if not self.collision.can_stand(body):
                 raise ValueError(f"Level spawn is obstructed: {position}")
-
-    def can_stand(self, body: pygame.Rect) -> bool:
-        return (
-            self.walkable.overlap_area(self.footprint, body.topleft)
-            == self.footprint.count()
-        )
-
-    def move(self, position: pygame.Vector2, delta: pygame.Vector2) -> bool:
-        # Small axis-separated steps prevent tunneling and allow sliding along banks.
-        steps = max(1, math.ceil(max(abs(delta.x), abs(delta.y)) / 4))
-        step = delta / steps
-        original = position.copy()
-        body = pygame.Rect((0, 0), BODY_SIZE)
-        for _ in range(steps):
-            for axis in (0, 1):
-                candidate = position.copy()
-                candidate[axis] += step[axis]
-                body.center = (round(candidate.x), round(candidate.y))
-                if self.can_stand(body):
-                    position.update(candidate)
-        return position != original
-
-    def clear_line(self, start: pygame.Vector2, end: pygame.Vector2) -> bool:
-        steps = max(1, math.ceil(start.distance_to(end) / 3))
-        for index in range(steps + 1):
-            point = start.lerp(end, index / steps)
-            x, y = round(point.x), round(point.y)
-            if not (0 <= x < MAP_SIZE[0] and 0 <= y < MAP_SIZE[1]):
-                return False
-            if not self.walkable.get_at((x, y)):
-                return False
-        return True

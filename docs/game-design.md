@@ -313,82 +313,128 @@ O jogo deverá possuir os seguintes estados:
 
 ---
 
-## 13. Arquitetura inicial do projeto
+## 13. Arquitetura do projeto
 
-A implementação deverá utilizar uma organização modular, separando responsabilidades de interface, entidades, regras de negócio e recursos gráficos.
+A implementação utiliza uma organização modular por responsabilidade, inspirada
+nos limites de dependência da clean architecture. Os módulos de entidades e
+sistemas não dependem de cenas, interface, carregamento de recursos ou do ciclo
+principal do jogo.
 
-### Estrutura sugerida
+Esta é uma abordagem pragmática: `pygame.Vector2`, `pygame.Rect` e as máscaras do
+Pygame permanecem na geometria e na simulação. O domínio não é completamente
+independente do framework, mas as regras do jogo ficam separadas da apresentação
+e do acesso aos recursos.
+
+### Estrutura adotada
 
 ```text
 the-lost-kingdom/
 │
 ├── assets/
-│   ├── maps/
-│   │   └── world_map.png
-│   │
-│   ├── sprites/
-│   │   ├── player/
-│   │   ├── enemies/
-│   │   ├── items/
-│   │   └── environment/
-│   │
-│   ├── audio/
-│   │   ├── music/
-│   │   └── effects/
-│   │
-│   └── fonts/
+│   ├── map.png
+│   ├── player/
+│   ├── enemy/
+│   └── sound/
 │
 ├── src/
 │   ├── main.py
-│   │
-│   ├── core/
-│   │   ├── game.py
-│   │   ├── settings.py
-│   │   └── states.py
-│   │
-│   ├── entities/
-│   │   ├── player.py
-│   │   ├── enemy.py
-│   │   └── coin.py
-│   │
-│   ├── systems/
-│   │   ├── collision.py
-│   │   ├── combat.py
-│   │   └── level.py
-│   │
-│   ├── scenes/
-│   │   ├── menu.py
-│   │   ├── game_scene.py
-│   │   ├── pause.py
-│   │   ├── game_over.py
-│   │   └── victory.py
-│   │
-│   └── ui/
-│       ├── hud.py
-│       └── components.py
+│   └── lost_kingdom/
+│       ├── core/
+│       │   ├── game.py
+│       │   ├── settings.py
+│       │   └── states.py
+│       ├── entities/
+│       │   ├── actor.py
+│       │   ├── player.py
+│       │   ├── enemy.py
+│       │   └── coin.py
+│       ├── systems/
+│       │   ├── collision.py
+│       │   ├── combat.py
+│       │   ├── level.py
+│       │   └── world.py
+│       ├── scenes/
+│       │   ├── menu.py
+│       │   ├── game_scene.py
+│       │   ├── pause.py
+│       │   ├── game_over.py
+│       │   └── victory.py
+│       ├── ui/
+│       │   ├── hud.py
+│       │   ├── components.py
+│       │   └── error.py
+│       └── resources/
+│           ├── assets.py
+│           └── audio.py
 │
 ├── docs/
 │   └── game-design.md
-│
-├── requirements.txt
+├── tests/
+├── pyproject.toml
+├── uv.lock
 ├── .gitignore
 └── README.md
 ```
 
+Os arquivos `__init__.py` dos pacotes foram omitidos da árvore. Eles não
+inicializam o Pygame nem carregam o coordenador gráfico. O namespace
+`lost_kingdom` evita pacotes genéricos no nível de `src`, e os assets mantêm seus
+nomes e caminhos atuais.
+
 ### Responsabilidades principais
 
-- `main.py`: ponto de entrada da aplicação.
-- `game.py`: inicialização e gerenciamento do ciclo principal do jogo.
-- `settings.py`: configurações de resolução, FPS e parâmetros gerais.
-- `states.py`: gerenciamento dos estados da aplicação.
-- `player.py`: atributos, movimentação, vida e ataques do jogador.
-- `enemy.py`: atributos, movimentação, comportamento e vida dos inimigos.
-- `coin.py`: representação e coleta das moedas.
-- `collision.py`: detecção e resolução de colisões.
-- `combat.py`: regras de combate e aplicação de danos.
-- `level.py`: carregamento do mapa, obstáculos e posicionamento dos elementos.
-- `game_scene.py`: gerenciamento da partida.
-- `hud.py`: apresentação dos corações e moedas.
+- [main.py](../src/main.py): entrada, logging, tratamento de erros e encerramento.
+- [core/game.py](../src/lost_kingdom/core/game.py): inicialização, composição das
+  dependências, janela, eventos, navegação e ciclo principal.
+- [core/settings.py](../src/lost_kingdom/core/settings.py): resolução, FPS,
+  parâmetros de movimentação e combate e localização dos assets.
+- [core/states.py](../src/lost_kingdom/core/states.py): estados da aplicação e
+  ações de navegação.
+- [entities/actor.py](../src/lost_kingdom/entities/actor.py): posição, direção e
+  corpo de colisão compartilhados pelos personagens.
+- [entities/player.py](../src/lost_kingdom/entities/player.py): vida, moedas,
+  ataques e intervalos do jogador.
+- [entities/enemy.py](../src/lost_kingdom/entities/enemy.py): atributos dos inimigos
+  e dados dos inimigos derrotados para a animação de morte.
+- [entities/coin.py](../src/lost_kingdom/entities/coin.py): posição e corpo das moedas.
+- [systems/collision.py](../src/lost_kingdom/systems/collision.py): máscara
+  transitável, consultas de colisão, movimento com deslizamento e linha de visão.
+- [systems/combat.py](../src/lost_kingdom/systems/combat.py): resolução dos ataques,
+  dano por contato e efeitos do combate.
+- [systems/level.py](../src/lost_kingdom/systems/level.py): geometria do mapa,
+  obstáculos, objetivo, spawns e validação dos posicionamentos; compõe o sistema
+  de colisão em `Level.collision`.
+- [systems/world.py](../src/lost_kingdom/systems/world.py): entrada da simulação,
+  movimentação, patrulha/perseguição, combate, coleta e condições de fim.
+- [scenes/game_scene.py](../src/lost_kingdom/scenes/game_scene.py): mundo da partida,
+  câmera, animações e renderização do cenário, personagens e HUD.
+- [scenes/](../src/lost_kingdom/scenes/): menu inicial, pausa, derrota e vitória,
+  com suas mensagens e opções de navegação.
+- [ui/components.py](../src/lost_kingdom/ui/components.py): fontes, cores,
+  primitivas visuais, molduras e desenho compartilhado de botões.
+- [ui/hud.py](../src/lost_kingdom/ui/hud.py): apresentação dos corações, moedas
+  e controles.
+- [ui/error.py](../src/lost_kingdom/ui/error.py): apresentação gráfica de falhas.
+- [resources/assets.py](../src/lost_kingdom/resources/assets.py): carregamento
+  e validação do mapa visual e spritesheets.
+- [resources/audio.py](../src/lost_kingdom/resources/audio.py): música, efeitos e
+  aviso de indisponibilidade de áudio.
+
+### Direção das dependências
+
+Configurações e estados não importam o ciclo principal. Entidades não importam
+sistemas nem apresentação; sistemas consomem entidades e não importam cenas,
+UI ou recursos. Cenas utilizam a simulação e os componentes visuais, enquanto
+o coordenador em `core/game.py` reúne as dependências externas e controla as
+transições.
+
+Apesar do nome `core`, escolhido para manter a organização original deste
+documento, `core/game.py` é o coordenador externo: não deve ser importado pelas
+entidades ou pelos sistemas. As regras ficam em `entities` e `systems`, não
+nos módulos de telas ou nos carregadores de recursos.
+
+Os imports utilizam os novos caminhos completos dos módulos. Não há fachadas
+de compatibilidade para os arquivos antigos.
 
 ---
 

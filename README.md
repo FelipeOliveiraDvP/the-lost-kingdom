@@ -69,18 +69,34 @@ parte do escopo da demo. Nao ha inventario, salvamento, progressao ou outras fas
 
 ## Organizacao e ajustes
 
-| Arquivo | Responsabilidade |
+| Modulo | Responsabilidade |
 | --- | --- |
 | [src/main.py](src/main.py) | Entrada, tratamento de erros e encerramento |
-| [game.py](src/lost_kingdom/game.py) | Janela, eventos, estados, camera e renderizacao |
-| [world.py](src/lost_kingdom/world.py) | Simulacao, combate, coleta e condicoes de fim |
-| [entities.py](src/lost_kingdom/entities.py) | Jogador, inimigos, moedas e direcoes |
-| [level.py](src/lost_kingdom/level.py) | Terreno transitavel, obstaculos e posicionamento |
-| [resources.py](src/lost_kingdom/resources.py) | Spritesheets, mapa, musica e efeitos |
-| [ui.py](src/lost_kingdom/ui.py) | Botoes, menus, coracoes e HUD |
-| [settings.py](src/lost_kingdom/settings.py) | Velocidades e parametros de combate |
+| [core/game.py](src/lost_kingdom/core/game.py) | Composicao, janela, eventos, navegacao e loop |
+| [core/settings.py](src/lost_kingdom/core/settings.py) | Configuracoes e localizacao dos assets |
+| [core/states.py](src/lost_kingdom/core/states.py) | Estados e acoes de navegacao |
+| [entities/](src/lost_kingdom/entities/) | Actor, direcoes, jogador, inimigos e moedas |
+| [systems/world.py](src/lost_kingdom/systems/world.py) | Simulacao, perseguicao, coleta e condicoes de fim |
+| [systems/combat.py](src/lost_kingdom/systems/combat.py) | Resolucao de ataques e dano por contato |
+| [systems/collision.py](src/lost_kingdom/systems/collision.py) | Colisao, movimento e linha de visao |
+| [systems/level.py](src/lost_kingdom/systems/level.py) | Terreno, obstaculos, objetivo e posicionamentos |
+| [scenes/](src/lost_kingdom/scenes/) | Partida, camera e telas de menu, pausa, derrota e vitoria |
+| [ui/components.py](src/lost_kingdom/ui/components.py) | Fontes, primitivas, molduras e botoes compartilhados |
+| [ui/hud.py](src/lost_kingdom/ui/hud.py) | Coracoes, moedas e controles |
+| [ui/error.py](src/lost_kingdom/ui/error.py) | Apresentacao grafica de erros |
+| [resources/assets.py](src/lost_kingdom/resources/assets.py) | Mapa visual e spritesheets |
+| [resources/audio.py](src/lost_kingdom/resources/audio.py) | Musica e efeitos |
 
-Adicione inimigos e moedas em `ENEMY_SPAWNS` e `COIN_SPAWNS`.
+A estrutura segue a secao de arquitetura do
+[game design](docs/game-design.md), dentro do namespace `lost_kingdom`.
+Entidades e sistemas nao importam cenas, UI, recursos ou o coordenador grafico.
+`core/game.py` compoe essas dependencias; configuracoes e estados nao dependem
+dele. A separacao e pragmatica: os tipos geometricos e as mascaras do Pygame
+continuam na simulacao, sem um dominio totalmente independente do framework.
+Os imports antigos nao possuem fachadas de compatibilidade.
+
+Adicione inimigos e moedas em `ENEMY_SPAWNS` e `COIN_SPAWNS` de
+[systems/level.py](src/lost_kingdom/systems/level.py).
 As coordenadas usam o mapa original de **1086 x 1448** pixels. Ao alterar o
 mapa, atualize tambem `LAND`, `SOLID_RECTS` e `SOLID_ELLIPSES`; as regioes
 externas aos poligonos representam agua, barrancos ou areas decorativas
@@ -89,7 +105,7 @@ inacessiveis. O carregamento rejeita posicionamentos dentro de obstaculos.
 Os spritesheets fornecidos usam celulas de 64 x 64 e quatro linhas.
 No jogador, a ordem e baixo, esquerda, direita, cima; nos inimigos,
 baixo, cima, esquerda, direita. `SPRITE_ROWS` em
-[resources.py](src/lost_kingdom/resources.py) mapeia as direcoes para as
+[resources/assets.py](src/lost_kingdom/resources/assets.py) mapeia as direcoes para as
 linhas de cada personagem. A renderizacao amplia os sprites com vizinho
 mais proximo para preservar a pixel art.
 
@@ -105,6 +121,8 @@ Cobrem combate, dano, coleta, pausa, reinicio, navegacao de menus,
 carregamento dos assets e renderizacao de todos os estados.
 Tambem verificam uma rota completa de START ao objetivo e a acessibilidade
 de todas as moedas e inimigos.
+Verificam ainda que importar a simulacao nao carrega a apresentacao nem
+inicializa dispositivos, e que os assets carregam fora do diretorio do projeto.
 
 ```bash
 uv run poe lint
